@@ -45,26 +45,48 @@ def do_complete(backend, login, user=None, redirect_name="next", *args, **kwargs
 
     is_authenticated = user_is_authenticated(user)
     user = user if is_authenticated else None
+    logger.debug(f"User[1]: {user}")
 
     partial = partial_pipeline_data(backend, user, *args, **kwargs)
+    logger.debug(f"Partial: {partial}")
     if partial:
-        user = backend.continue_pipeline(partial)
+        try:
+            user = backend.continue_pipeline(partial)
+        except:
+            logger.exception("Error in pipeline")
+        logger.debug(f"User[2]: {user}")
         # clean partial data after usage
-        backend.strategy.clean_partial_pipeline(partial.token)
+        try:
+            backend.strategy.clean_partial_pipeline(partial.token)
+        except:
+            logger.exception("Error cleaning partial pipeline")
     else:
-        user = backend.complete(user=user, redirect_name=redirect_name, *args, **kwargs)
-    logger.debug(f"User: {user}")
+        try:
+            user = backend.complete(
+                user=user, redirect_name=redirect_name, *args, **kwargs
+            )
+        except:
+            logger.exception("Error completing pipeline")
+        logger.debug(f"User[3]: {user}")
 
     # pop redirect value before the session is trashed on login(), but after
     # the pipeline so that the pipeline can change the redirect if needed
-    redirect_value = backend.strategy.session_get(redirect_name, "") or data.get(
-        redirect_name, ""
-    )
+    try:
+        redirect_value = backend.strategy.session_get(redirect_name, "") or data.get(
+            redirect_name, ""
+        )
+    except:
+        logger.exception("Error getting redirect value")
+        redirect_value = ""
     logger.debug(f"Redirect value: {redirect_value}")
 
     # check if the output value is something else than a user and just
     # return it to the client
-    user_model = backend.strategy.storage.user.user_model()
+    try:
+        user_model = backend.strategy.storage.user.user_model()
+    except:
+        logger.exception("Error getting user model")
+        user_model = None
     logger.debug(f"User model: {user_model}")
 
     if user and not isinstance(user, user_model):
