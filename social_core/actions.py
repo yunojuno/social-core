@@ -1,3 +1,4 @@
+import logging
 from urllib.parse import quote
 
 from .utils import (
@@ -7,6 +8,8 @@ from .utils import (
     user_is_active,
     user_is_authenticated,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def do_auth(backend, redirect_name="next"):
@@ -35,7 +38,10 @@ def do_auth(backend, redirect_name="next"):
 
 
 def do_complete(backend, login, user=None, redirect_name="next", *args, **kwargs):
+    logger.debug("do_complete method called.")
+
     data = backend.strategy.request_data()
+    logger.debug(f"Data: {data}")
 
     is_authenticated = user_is_authenticated(user)
     user = user if is_authenticated else None
@@ -47,16 +53,20 @@ def do_complete(backend, login, user=None, redirect_name="next", *args, **kwargs
         backend.strategy.clean_partial_pipeline(partial.token)
     else:
         user = backend.complete(user=user, redirect_name=redirect_name, *args, **kwargs)
+    logger.debug(f"User: {user}")
 
     # pop redirect value before the session is trashed on login(), but after
     # the pipeline so that the pipeline can change the redirect if needed
     redirect_value = backend.strategy.session_get(redirect_name, "") or data.get(
         redirect_name, ""
     )
+    logger.debug(f"Redirect value: {redirect_value}")
 
     # check if the output value is something else than a user and just
     # return it to the client
     user_model = backend.strategy.storage.user.user_model()
+    logger.debug(f"User model: {user_model}")
+
     if user and not isinstance(user, user_model):
         return user
 
