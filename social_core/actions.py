@@ -62,6 +62,7 @@ def do_complete(backend, login, user=None, redirect_name="next", *args, **kwargs
             logger.exception("Error cleaning partial pipeline")
     else:
         try:
+            logger.debug("Completing pipeline")
             user = backend.complete(
                 user=user, redirect_name=redirect_name, *args, **kwargs
             )

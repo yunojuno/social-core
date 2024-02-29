@@ -9,12 +9,15 @@ Terminology:
 """
 
 import json
+import logging
 
 from onelogin.saml2.auth import OneLogin_Saml2_Auth
 from onelogin.saml2.settings import OneLogin_Saml2_Settings
 
 from ..exceptions import AuthFailed, AuthMissingParameter
 from .base import BaseAuth
+
+logger = logging.getLogger(__name__)
 
 # Helpful constants:
 OID_COMMON_NAME = "urn:oid:2.5.4.3"
@@ -309,10 +312,17 @@ class SAMLAuth(BaseAuth):
         The user has been redirected back from the IdP and we should
         now log them in, if everything checks out.
         """
+        logger.debug("Calling backend.auth_complete")
+        logger.debug(f"args: {args}")
+        logger.debug(f"kwargs: {kwargs}")
         try:
             relay_state_str = self.strategy.request_data()["RelayState"]
+            logger.debug(f"RelayState: {relay_state_str}")
         except KeyError:
             raise AuthMissingParameter(self, "RelayState")
+        except:
+            logger.exception("Error getting RelayState")
+            raise
 
         try:
             relay_state = json.loads(relay_state_str)
@@ -330,15 +340,23 @@ class SAMLAuth(BaseAuth):
                 # The do_complete action expects the "next" URL to be in session state or the request params.
                 self.strategy.session_set(kwargs.get("redirect_name", "next"), next_url)
 
+        logger.debug(f"IdP name: {idp_name}")
         idp = self.get_idp(idp_name)
+        logger.debug(f"IdP: {idp}")
         auth = self._create_saml_auth(idp)
-        auth.process_response()
+        logger.debug(f"Auth: {auth}")
+        try:
+            auth.process_response()
+        except:
+            logger.exception("Error processing SAML response")
+            raise
         errors = auth.get_errors()
         if errors or not auth.is_authenticated():
             reason = auth.get_last_error_reason()
             raise AuthFailed(self, f"SAML login failed: {errors} ({reason})")
 
         attributes = auth.get_attributes()
+        logger.debug(f"Attributes: {attributes}")
         attributes["name_id"] = auth.get_nameid()
         self._check_entitlements(idp, attributes)
         response = {
@@ -347,6 +365,7 @@ class SAMLAuth(BaseAuth):
             "session_index": auth.get_session_index(),
         }
         kwargs.update({"response": response, "backend": self})
+        logger.debug(f"Calling strategy.authenticate with kwargs: {kwargs}")
         return self.strategy.authenticate(*args, **kwargs)
 
     def extra_data(self, user, uid, response, details=None, *args, **kwargs):
